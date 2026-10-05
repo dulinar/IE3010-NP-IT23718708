@@ -1,6 +1,6 @@
 /*
  * NetMessenger Server - IE3010 Network Programming
- * Student ID: IT23718708 | NID: NID:7187
+ * Student ID: IT23718708 | Port: 14708 | NID: NID:7187
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -116,7 +116,7 @@ void disconnect_client(client_t *c) {
     }
     pthread_mutex_unlock(&lock);
 
-    /* shutdown before close */
+    /* Worksheet 5 Task 11: shutdown before close */
     shutdown(fd, SHUT_RDWR);
     close(fd);
 
@@ -159,11 +159,12 @@ void handle_sendfile(client_t *c, char *args, char *rx, int *rx_len, int offset)
     }
 
     /* Create personalized directory: ./storage/IT23718708/<sender>/ */
-    char path[512];
-    snprintf(path, sizeof(path), "%s/%s", STORAGE_DIR, c->name);
+    mkdir("./storage", 0755);
     mkdir(STORAGE_DIR, 0755);
-    mkdir(path, 0755);
-    snprintf(path, sizeof(path), "%s/%s/%s", STORAGE_DIR, c->name, fname);
+    char dir[512], path[512];
+    snprintf(dir, sizeof(dir), "%s/%s", STORAGE_DIR, c->name);
+    mkdir(dir, 0755);
+    snprintf(path, sizeof(path), "%s/%s", dir, fname);
 
     FILE *fp = fopen(path, "wb");
     if (!fp) {
@@ -388,7 +389,7 @@ void* client_thread(void *arg) {
                     if (!r) {
                         for (int i = 0; i < MAX_ROOMS; i++) {
                             if (!rooms[i].active) {
-                                r = &rooms[i]; r->active = 1; strncpy(r->name, args, sizeof(r->name) - 1); r->count = 0;
+                                r = &rooms[i]; r->active = 1; snprintf(r->name, sizeof(r->name), "%s", args); r->count = 0;
                                 break;
                             }
                         }
@@ -524,6 +525,10 @@ int main(int argc, char *argv[]) {
     if (getsockname(sfd, (struct sockaddr *)&local, &local_len) == 0) {
         printf("[getsockname] Bound to port: %d\n", ntohs(local.sin_port));
     }
+
+    /* Initialize storage base directories */
+    mkdir("./storage", 0755);
+    mkdir(STORAGE_DIR, 0755);
 
     log_msg("STARTUP", "Server started");
 

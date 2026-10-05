@@ -1,10 +1,10 @@
 # ============================================================================
-# IE3010 - Network Programming
+# IE3010 - Network Programming (Year 3, Semester 2)
 # NetMessenger: A Multi-Client Chat and File-Sharing Platform over TCP/IP
 # ============================================================================
 # Student Registration Number: IT23718708
 # Derived Port:                14708 (6000 + 8708)
-# Node ID (NID) Tag:           NID:7187
+# Node ID (NID) Tag:           NID:7187 (digits 3-6 of 23718708)
 # Personalised Makefile:       Makefile_8708
 # Source Files:                server_8708.c, client_8708.c
 # Log File:                    netmsg_IT23718708.log
