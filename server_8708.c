@@ -1,6 +1,6 @@
 /*
  * NetMessenger Server - IE3010 Network Programming
- * Student ID: IT23718708 | Port: 14708 | NID: NID:7187
+ * Student ID: IT23718708 | NID: NID:7187
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -116,7 +116,7 @@ void disconnect_client(client_t *c) {
     }
     pthread_mutex_unlock(&lock);
 
-    /* Worksheet 5 Task 11: shutdown before close */
+    /* shutdown before close */
     shutdown(fd, SHUT_RDWR);
     close(fd);
 

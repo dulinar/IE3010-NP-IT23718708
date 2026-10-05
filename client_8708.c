@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
     const char *ip = (argc > 1) ? argv[1] : DEFAULT_IP;
     int port = (argc > 2) ? atoi(argv[2]) : DEFAULT_PORT;
 
-    /* Lecture 05 Slide 50: ignore SIGPIPE */
+    /* ignore SIGPIPE */
     signal(SIGPIPE, SIG_IGN);
 
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -147,13 +147,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* Worksheet 2 Task 6: memset */
+    /* memset */
     struct sockaddr_in serv;
     memset(&serv, 0, sizeof(serv));
     serv.sin_family = AF_INET;
-    serv.sin_port = htons(port); /* Worksheet 2 Task 3: htons */
+    serv.sin_port = htons(port); /* htons */
 
-    /* Lecture 04 Slide 13: gethostbyname to resolve hostname or IP */
+    /* gethostbyname to resolve hostname or IP */
     struct hostent *he = gethostbyname(ip);
     if (he != NULL) {
         memcpy(&serv.sin_addr, he->h_addr_list[0], he->h_length);
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* Worksheet 2 Task 7: getsockname & getpeername */
+    /* getsockname & getpeername */
     struct sockaddr_in local, peer;
     socklen_t local_len = sizeof(local), peer_len = sizeof(peer);
     if (getsockname(sock_fd, (struct sockaddr *)&local, &local_len) == 0)
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
 
     printf("Type commands (e.g. REGISTER <name>, BCAST <msg>, QUIT):\n\n");
 
-    /* Start background listener thread (Worksheet 5 dual I/O solution) */
+    /* Start background listener thread */
     pthread_t tid;
     pthread_create(&tid, NULL, recv_thread, NULL);
     pthread_detach(tid);
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
     }
 
     running = 0;
-    /* Worksheet 5 Task 11: shutdown before close */
+    /* shutdown before close */
     shutdown(sock_fd, SHUT_WR);
     close(sock_fd);
     return 0;
