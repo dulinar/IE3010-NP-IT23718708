@@ -1,0 +1,74 @@
+# ============================================================================
+# IE3010 - Network Programming (Year 3, Semester 2)
+# NetMessenger: A Multi-Client Chat and File-Sharing Platform over TCP/IP
+# ============================================================================
+# Student Registration Number: IT23718708
+# Derived Port:                14708 (6000 + 8708)
+# Node ID (NID) Tag:           NID:7187 (digits 3-6 of 23718708)
+# Personalised Makefile:       Makefile_8708
+# Source Files:                server_8708.c, client_8708.c
+# Log File:                    netmsg_IT23718708.log
+# Archive Target:              IE3010_IT23718708.zip
+# ============================================================================
+
+CC = gcc
+CFLAGS = -Wall -Wextra -pthread -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -O2
+LDFLAGS = -pthread
+
+SERVER_SRC = server_8708.c
+CLIENT_SRC = client_8708.c
+
+SERVER_BIN = server_8708
+CLIENT_BIN = client_8708
+
+ZIP_NAME = IE3010_IT23718708.zip
+
+.PHONY: all server client clean distclean zip run-server run-client help
+
+all: server client
+
+server: $(SERVER_BIN)
+
+client: $(CLIENT_BIN)
+
+$(SERVER_BIN): $(SERVER_SRC)
+	@echo "[BUILD] Compiling NetMessenger Server ($@)..."
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	@echo "[SUCCESS] Server binary created: $@"
+
+$(CLIENT_BIN): $(CLIENT_SRC)
+	@echo "[BUILD] Compiling NetMessenger Client ($@)..."
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	@echo "[SUCCESS] Client binary created: $@"
+
+run-server: server
+	@echo "[RUN] Starting NetMessenger Server on port 14708..."
+	./$(SERVER_BIN) 14708
+
+run-client: client
+	@echo "[RUN] Starting NetMessenger Client connecting to 127.0.0.1:14708..."
+	./$(CLIENT_BIN) 127.0.0.1 14708
+
+clean:
+	@echo "[CLEAN] Removing compiled binaries..."
+	rm -f $(SERVER_BIN) $(CLIENT_BIN) *.o
+
+distclean: clean
+	@echo "[DISTCLEAN] Removing logs, storage, downloads, and archives..."
+	rm -rf storage downloads $(ZIP_NAME) netmsg_IT23718708.log history_IT23718708.log
+
+zip:
+	@echo "[ZIP] Packaging submission archive $(ZIP_NAME)..."
+	zip -r $(ZIP_NAME) server_8708.c client_8708.c Makefile_8708 README.md DESIGN_DIARY.md PROMPT_LOG.md REFLECTION.md netmsg_IT23718708.log
+	@echo "[SUCCESS] Archive created: $(ZIP_NAME)"
+
+help:
+	@echo "NetMessenger Build Targets (IT23718708):"
+	@echo "  make -f Makefile_8708 all        : Build both server and client"
+	@echo "  make -f Makefile_8708 server     : Build server_8708"
+	@echo "  make -f Makefile_8708 client     : Build client_8708"
+	@echo "  make -f Makefile_8708 run-server : Execute server on port 14708"
+	@echo "  make -f Makefile_8708 run-client : Execute client"
+	@echo "  make -f Makefile_8708 clean      : Remove binaries"
+	@echo "  make -f Makefile_8708 distclean  : Remove binaries, logs, and received storage"
+	@echo "  make -f Makefile_8708 zip        : Create submission archive $(ZIP_NAME)"
