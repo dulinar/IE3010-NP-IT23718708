@@ -25,7 +25,8 @@
 #define STORAGE_DIR  "./storage/IT23718708"
 #define MAX_CLIENTS  64
 #define MAX_ROOMS    32
-#define BUF_SIZE     4096
+#define BUF_SIZE      4096
+#define MAX_FILE_SIZE (50 * 1024 * 1024) /* 50 MB limit for ERR 004 */
 
 /* Client information */
 typedef struct {
@@ -79,10 +80,10 @@ void broadcast(const char *msg, int exclude_fd) {
     }
 }
 
-/* Find client by username */
+/* Find client by username (case-insensitive) */
 client_t* find_client(const char *name) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (clients[i].active && clients[i].registered && strcmp(clients[i].name, name) == 0)
+        if (clients[i].active && clients[i].registered && strcasecmp(clients[i].name, name) == 0)
             return &clients[i];
     }
     return NULL;
@@ -132,13 +133,40 @@ void disconnect_client(client_t *c) {
     }
 }
 
+/* Drain bytes from rx and socket to keep connection aligned on discard */
+void drain_bytes(int fd, char *rx, int *rx_len, long long bytes) {
+    long long left = bytes;
+    int buf = *rx_len;
+    if (buf > 0) {
+        int w = (buf > left) ? (int)left : buf;
+        left -= w;
+        int rem = buf - w;
+        if (rem > 0) memmove(rx, rx + w, rem);
+        *rx_len = rem;
+        rx[*rx_len] = '\0';
+    }
+    char dummy[BUF_SIZE];
+    while (left > 0) {
+        int rd = (left > (long long)sizeof(dummy)) ? (int)sizeof(dummy) : (int)left;
+        ssize_t n = recv(fd, dummy, rd, 0);
+        if (n <= 0) break;
+        left -= n;
+    }
+}
+
 /* Handle SENDFILE: store under storage/IT23718708/<sender>/ and relay */
-void handle_sendfile(client_t *c, char *args, char *rx, int *rx_len, int offset) {
+void handle_sendfile(client_t *c, const char *args, char *rx, int *rx_len) {
     char target[32] = {0}, fname[128] = {0};
     long long fsize = 0;
 
     if (sscanf(args, "%31s %127s %lld", target, fname, &fsize) != 3 || fsize <= 0) {
         reply(c->fd, "ERR", "007 BAD_ARGUMENTS");
+        return;
+    }
+
+    if (fsize > MAX_FILE_SIZE) {
+        reply(c->fd, "ERR", "004 FILE_TOO_LARGE");
+        drain_bytes(c->fd, rx, rx_len, fsize);
         return;
     }
 
@@ -155,6 +183,7 @@ void handle_sendfile(client_t *c, char *args, char *rx, int *rx_len, int offset)
 
     if (target_fd == -1 && !r) {
         reply(c->fd, "ERR", "002 USER_OR_ROOM_NOT_FOUND");
+        drain_bytes(c->fd, rx, rx_len, fsize);
         return;
     }
 
@@ -169,21 +198,21 @@ void handle_sendfile(client_t *c, char *args, char *rx, int *rx_len, int offset)
     FILE *fp = fopen(path, "wb");
     if (!fp) {
         reply(c->fd, "ERR", "500 STORAGE_ERROR");
+        drain_bytes(c->fd, rx, rx_len, fsize);
         return;
     }
 
     /* 1. Write bytes already present in receive buffer */
     long long left = fsize;
-    int buffered = *rx_len - offset;
+    int buffered = *rx_len;
     if (buffered > 0) {
         int w = (buffered > left) ? (int)left : buffered;
-        fwrite(rx + offset, 1, w, fp);
+        fwrite(rx, 1, w, fp);
         left -= w;
         int rem = buffered - w;
-        if (rem > 0) memmove(rx, rx + offset + w, rem);
+        if (rem > 0) memmove(rx, rx + w, rem);
         *rx_len = rem;
-    } else {
-        *rx_len = 0;
+        rx[*rx_len] = '\0';
     }
 
     /* 2. Read remaining file bytes directly from socket */
@@ -267,6 +296,9 @@ void* client_thread(void *arg) {
             if (strlen(line) > 0 && line[strlen(line) - 1] == '\r') line[strlen(line) - 1] = '\0';
 
             int consumed = (nl - rx) + 1;
+            memmove(rx, rx + consumed, rx_len - consumed);
+            rx_len -= consumed;
+            rx[rx_len] = '\0';
 
             /* Extract command and arguments */
             char cmd[32] = {0}, *args = "";
@@ -321,6 +353,13 @@ void* client_thread(void *arg) {
             }
             /* Remaining commands require registration */
             else if (!c->registered) {
+                if (strcasecmp(cmd, "SENDFILE") == 0) {
+                    char t[32], f[128];
+                    long long sz = 0;
+                    if (sscanf(args, "%31s %127s %lld", t, f, &sz) == 3 && sz > 0) {
+                        drain_bytes(c->fd, rx, &rx_len, sz);
+                    }
+                }
                 reply(c->fd, "ERR", "005 UNREGISTERED");
             }
             /* 3. LIST */
@@ -355,24 +394,39 @@ void* client_thread(void *arg) {
             }
             /* 5. PMSG <target> <message> */
             else if (strcasecmp(cmd, "PMSG") == 0) {
-                char *msg = strchr(args, ' ');
-                if (!msg) {
+                char target[32] = {0};
+                char *space_pos = strchr(args, ' ');
+                if (!space_pos) {
                     reply(c->fd, "ERR", "007 BAD_ARGUMENTS");
                 } else {
-                    *msg = '\0';
-                    msg++;
+                    size_t tlen = space_pos - args;
+                    if (tlen >= sizeof(target)) tlen = sizeof(target) - 1;
+                    memcpy(target, args, tlen);
+                    target[tlen] = '\0';
+
+                    char *msg = space_pos + 1;
                     while (*msg == ' ') msg++;
-                    pthread_mutex_lock(&lock);
-                    client_t *t = find_client(args);
-                    if (t) {
-                        char priv[BUF_SIZE + 64];
-                        snprintf(priv, sizeof(priv), "MSG PRIV %s %s\n", c->name, msg);
-                        send(t->fd, priv, strlen(priv), 0);
-                        pthread_mutex_unlock(&lock);
-                        reply(c->fd, "OK", "SENT");
+
+                    if (strlen(msg) == 0) {
+                        reply(c->fd, "ERR", "007 BAD_ARGUMENTS");
                     } else {
-                        pthread_mutex_unlock(&lock);
-                        reply(c->fd, "ERR", "002 USER_NOT_FOUND");
+                        pthread_mutex_lock(&lock);
+                        client_t *t = find_client(target);
+                        if (t) {
+                            char priv[BUF_SIZE + 64];
+                            snprintf(priv, sizeof(priv), "MSG PRIV %s %s\n", c->name, msg);
+                            send(t->fd, priv, strlen(priv), 0);
+                            pthread_mutex_unlock(&lock);
+
+                            reply(c->fd, "OK", "SENT");
+
+                            char log_buf[256];
+                            snprintf(log_buf, sizeof(log_buf), "%s -> %s: %s", c->name, target, msg);
+                            log_msg("PMSG", log_buf);
+                        } else {
+                            pthread_mutex_unlock(&lock);
+                            reply(c->fd, "ERR", "002 USER_NOT_FOUND");
+                        }
                     }
                 }
             }
@@ -476,15 +530,11 @@ void* client_thread(void *arg) {
             }
             /* 10. SENDFILE <target> <filename> <filesize> */
             else if (strcasecmp(cmd, "SENDFILE") == 0) {
-                handle_sendfile(c, args, rx, &rx_len, consumed);
-                break;
+                handle_sendfile(c, args, rx, &rx_len);
             }
             else {
                 reply(c->fd, "ERR", "006 UNKNOWN_COMMAND");
             }
-
-            memmove(rx, rx + consumed, rx_len - consumed);
-            rx_len -= consumed;
         }
     }
 

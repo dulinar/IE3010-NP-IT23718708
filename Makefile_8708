@@ -59,7 +59,7 @@ distclean: clean
 
 zip:
 	@echo "[ZIP] Packaging submission archive $(ZIP_NAME)..."
-	zip -r $(ZIP_NAME) server_8708.c client_8708.c Makefile_8708 README.md DESIGN_DIARY.md PROMPT_LOG.md REFLECTION.md netmsg_IT23718708.log
+	zip -r $(ZIP_NAME) server_8708.c client_8708.c Makefile_8708 Makefile README.md DESIGN_DIARY.md PROMPT_LOG.md REFLECTION.md IMPLEMENTATION_REPORT.md VIVA_AND_LAB_PREP.md test_protocol.py netmsg_IT23718708.log
 	@echo "[SUCCESS] Archive created: $(ZIP_NAME)"
 
 help:

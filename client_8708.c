@@ -52,6 +52,9 @@ void* recv_thread(void *arg) {
             if (strlen(line) > 0 && line[strlen(line) - 1] == '\r') line[strlen(line) - 1] = '\0';
 
             int consumed = (nl - rx) + 1;
+            memmove(rx, rx + consumed, rx_len - consumed);
+            rx_len -= consumed;
+            rx[rx_len] = '\0';
 
             /* Check for incoming file: MSG FILE <sender> <filename> <filesize> */
             if (strncmp(line, "MSG FILE ", 9) == 0) {
@@ -65,16 +68,15 @@ void* recv_thread(void *arg) {
                 FILE *fp = fopen(path, "wb");
 
                 long long left = fsize;
-                int buffered = rx_len - consumed;
+                int buffered = rx_len;
                 if (buffered > 0) {
                     int w = (buffered > left) ? (int)left : buffered;
-                    if (fp) fwrite(rx + consumed, 1, w, fp);
+                    if (fp) fwrite(rx, 1, w, fp);
                     left -= w;
                     int rem = buffered - w;
-                    if (rem > 0) memmove(rx, rx + consumed + w, rem);
+                    if (rem > 0) memmove(rx, rx + w, rem);
                     rx_len = rem;
-                } else {
-                    rx_len = 0;
+                    rx[rx_len] = '\0';
                 }
 
                 char chunk[BUF_SIZE];
@@ -91,12 +93,9 @@ void* recv_thread(void *arg) {
                 }
                 printf("> ");
                 fflush(stdout);
-                break;
             } else {
                 printf("%s\n> ", line);
                 fflush(stdout);
-                memmove(rx, rx + consumed, rx_len - consumed);
-                rx_len -= consumed;
             }
         }
     }
@@ -189,10 +188,10 @@ int main(int argc, char *argv[]) {
         line[strcspn(line, "\r\n")] = '\0';
         if (strlen(line) == 0) continue;
 
-        /* Check for SENDFILE command: SENDFILE <target> <filepath> */
+        /* Check for SENDFILE command: SENDFILE <target> <filepath> [optional_size] */
         if (strncasecmp(line, "SENDFILE ", 9) == 0) {
             char target[64] = {0}, fpath[256] = {0};
-            if (sscanf(line + 9, "%63s %255s", target, fpath) == 2) {
+            if (sscanf(line + 9, "%63s %255s", target, fpath) >= 2) {
                 send_file(target, fpath);
                 continue;
             }
