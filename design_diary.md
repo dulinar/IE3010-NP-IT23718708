@@ -23,8 +23,6 @@ The main components planned were:
 
 ## 2. Personalization
 
-I added the required student-specific values to the system.
-
 The selected values are:
 
 - Registration Number: `IT23718708`
