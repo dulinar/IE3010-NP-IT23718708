@@ -92,7 +92,7 @@ To build only the client:
 
 Run:
 
-`./server_8708 14708`
+`./server_8708`
 
 The server will listen for TCP connections on port `14708`.
 
@@ -106,7 +106,7 @@ You can also use:
 
 Open another terminal and run:
 
-`./client_8708 127.0.0.1 14708`
+`./client_8708 127.0.0.1`
 
 Or use:
 
